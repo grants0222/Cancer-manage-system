@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.List;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 import lab09.model.Cancer;
 
 import java.text.SimpleDateFormat;
@@ -32,6 +35,21 @@ public class CsvExportUtil {
 	        return false;  // 失敗
 	    }
 	}
+	
+	public static boolean exportCancerDataToJson(List<Cancer> list, String fileName) {
+        try (FileWriter writer = new FileWriter(fileName)) {
+            Gson gson = new GsonBuilder()
+                    .setPrettyPrinting()  // 美化格式，方便閱讀
+                    .setDateFormat("yyyy-MM-dd")  // 日期格式
+                    .create();
+
+            gson.toJson(list, writer);  // 將 list 寫入 JSON
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
     // 簡單處理 CSV 字串：如果包含逗號或雙引號，就用雙引號包起來，且內部雙引號用兩個雙引號取代
     private static String escapeCsv(String input) {
         if (input == null) {

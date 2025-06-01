@@ -3,6 +3,7 @@ package lab09;
 import javafx.application.Application;
 import javafx.collections.*;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
@@ -48,7 +49,7 @@ public class CancerFXApp extends Application {
 	    TableColumn<Cancer, Integer> daysCol = new TableColumn<>("Follow Days");
 	    daysCol.setCellValueFactory(new PropertyValueFactory<>("followDays"));
 
-	    TableColumn<Cancer, Void> editCol = new TableColumn<>("修改");
+	    TableColumn<Cancer, Void> editCol = new TableColumn<>("  ");
 	    editCol.setCellFactory(col -> new TableCell<>() {
 	        private final Button editBtn = new Button("修改");
 	        {
@@ -69,16 +70,22 @@ public class CancerFXApp extends Application {
 	        }
 	    });
 
-	    TableColumn<Cancer, Void> deleteCol = new TableColumn<>("刪除");
+	    TableColumn<Cancer, Void> deleteCol = new TableColumn<>("  ");
 	    deleteCol.setCellFactory(col -> new TableCell<>() {
 	        private final Button deleteBtn = new Button("刪除");
 	        {
-	            deleteBtn.setOnAction(e -> {
-	                Cancer c = getTableView().getItems().get(getIndex());
-	                dao.deletePatientData(c);
-	                refreshTable();
-	                showInfo("刪除完成");
-	            });
+	        	deleteBtn.setOnAction(e -> {
+	        	    Cancer c = getTableView().getItems().get(getIndex());
+	        	    Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "確定要刪除病患ID：" + c.getPatientId() + " 嗎？", ButtonType.YES, ButtonType.NO);
+	        	    confirm.setTitle("刪除確認");
+	        	    confirm.showAndWait().ifPresent(response -> {
+	        	        if (response == ButtonType.YES) {
+	        	            dao.deletePatientData(c);
+	        	            refreshTable();
+	        	            showInfo("刪除完成");
+	        	        }
+	        	    });
+	        	});
 	        }
 	        @Override
 	        protected void updateItem(Void item, boolean empty) {
@@ -89,7 +96,8 @@ public class CancerFXApp extends Application {
 
 	    tableView.getColumns().addAll(idCol, stageCol, raceCol, vitalCol, updateCol, daysCol, editCol, deleteCol);
 	    tableView.setItems(currentData);
-	    refreshTable();
+	    
+//	    refreshTable();
 
 	    // 查詢介面
 	    ComboBox<String> queryTypeBox = new ComboBox<>();
@@ -136,39 +144,92 @@ public class CancerFXApp extends Application {
 	    });
 
 	    // 建立操作按鈕列
-	    Button importBtn = new Button("匯入 CSV");
+	    Button importBtn = new Button("匯入資料表");
 	    Button addBtn = new Button("新增資料");
-	    Button exportBtn = new Button("匯出 CSV");
+	    Button exportBtn = new Button("匯出資料表");
 	    Button countBtn = new Button("資料筆數");
 	    Button exitBtn = new Button("離開");
-
+	    
+	    
+	    
 	    HBox queryBox = new HBox(10, queryTypeBox, queryField, doQueryBtn);
-	    queryBox.setPadding(new Insets(10));
-
 	    HBox buttonBox = new HBox(10, importBtn, addBtn, exportBtn, countBtn, exitBtn);
-	    buttonBox.setPadding(new Insets(10));
 
-	    VBox root = new VBox(10,buttonBox, queryBox , tableView);
+	    HBox queryAndButtonsBox = new HBox(20, queryBox, buttonBox);
+	    queryAndButtonsBox.setPadding(new Insets(10));
+	    queryAndButtonsBox.setAlignment(Pos.CENTER_LEFT);
+
+	    VBox root = new VBox(10, queryAndButtonsBox, tableView);
 	    root.setPadding(new Insets(10));
+
+	    
 
 	    Scene scene = new Scene(root, 1000, 600);
 	    primaryStage.setScene(scene);
 	    primaryStage.show();
 
-	    // 匯入 CSV
+	    // 匯入功能（CSV or JSON）
 	    importBtn.setOnAction(e -> {
 	        FileChooser fileChooser = new FileChooser();
-	        fileChooser.setTitle("請選擇CSV檔案");
-	        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV files", "*.csv"));
+	        fileChooser.setTitle("請選擇 CSV 或 JSON 檔案");
+	        fileChooser.getExtensionFilters().addAll(
+	            new FileChooser.ExtensionFilter("CSV files", "*.csv"),
+	            new FileChooser.ExtensionFilter("JSON files", "*.json")
+	        );
 	        File file = fileChooser.showOpenDialog(primaryStage);
 	        if (file != null) {
-	            List<Cancer> list = service.readCsv(file.getAbsolutePath());
-	            currentData.setAll(list);
-	            refreshTable();
-	            showInfo("匯入完成，共 " + list.size() + " 筆資料。\n請執行查詢以查看資料。");
+	            String fileName = file.getName().toLowerCase();
+	            List<Cancer> list = null;
+	            if (fileName.endsWith(".csv")) {
+	                list = service.readCsv(file.getAbsolutePath());
+	            } else if (fileName.endsWith(".json")) {
+	                list = service.readJson(file.getAbsolutePath());
+	            } else {
+	                showError("不支援的檔案格式");
+	                return;
+	            }
+
+	            if (list != null && !list.isEmpty()) {
+	                currentData.setAll(list);
+	                refreshTable();
+	                showInfo("匯入完成，共 " + list.size() + " 筆資料。");
+	            } else {
+	                showError("匯入失敗或檔案內容空白");
+	            }
 	        }
 	    });
 
+	    // 匯出功能（CSV or JSON）
+	    exportBtn.setOnAction(e -> {
+	        if (currentData.isEmpty()) {
+	            showError("目前無資料可匯出");
+	            return;
+	        }
+	        FileChooser fileChooser = new FileChooser();
+	        fileChooser.setTitle("請選擇匯出檔案路徑 (CSV 或 JSON)");
+	        fileChooser.getExtensionFilters().addAll(
+	            new FileChooser.ExtensionFilter("CSV files", "*.csv"),
+	            new FileChooser.ExtensionFilter("JSON files", "*.json")
+	        );
+	        File file = fileChooser.showSaveDialog(primaryStage);
+	        if (file != null) {
+	            String fileName = file.getName().toLowerCase();
+	            boolean success = false;
+	            if (fileName.endsWith(".csv")) {
+	                success = CsvExportUtil.exportCancerData(currentData, file.getAbsolutePath());
+	            } else if (fileName.endsWith(".json")) {
+	                success = CsvExportUtil.exportCancerDataToJson(currentData, file.getAbsolutePath());
+	            } else {
+	                showError("不支援的匯出檔案格式，請使用 .csv 或 .json");
+	                return;
+	            }
+	            if (success) {
+	                showInfo("匯出成功！");
+	            } else {
+	                showError("匯出失敗");
+	            }
+	        }
+	    });
 	    // 新增資料
 	    addBtn.setOnAction(e -> {
 	        Cancer input = CancerDialog.show(null);
@@ -183,25 +244,7 @@ public class CancerFXApp extends Application {
 	        }
 	    });
 
-	    // 匯出 CSV
-	    exportBtn.setOnAction(e -> {
-	        if (currentData.isEmpty()) {
-	            showError("目前無資料可匯出");
-	            return;
-	        }
-	        FileChooser fileChooser = new FileChooser();
-	        fileChooser.setTitle("請選擇匯出CSV的路徑");
-	        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV files", "*.csv"));
-	        File file = fileChooser.showSaveDialog(primaryStage);
-	        if (file != null) {
-	            boolean success = CsvExportUtil.exportCancerData(currentData, file.getAbsolutePath());
-	            if (success) {
-	                showInfo("匯出成功");
-	            } else {
-	                showError("匯出失敗");
-	            }
-	        }
-	    });
+	    
 
 	    // 資料筆數
 	    countBtn.setOnAction(e -> {
@@ -210,7 +253,15 @@ public class CancerFXApp extends Application {
 	    });
 
 	    // 離開
-	    exitBtn.setOnAction(e -> primaryStage.close());
+	    exitBtn.setOnAction(e -> {
+	        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "確定要離開程式嗎？", ButtonType.YES, ButtonType.NO);
+	        confirm.setTitle("離開確認");
+	        confirm.showAndWait().ifPresent(response -> {
+	            if (response == ButtonType.YES) {
+	                primaryStage.close();
+	            }
+	        });
+	    });
 	}
 
 	private void refreshTable() {
