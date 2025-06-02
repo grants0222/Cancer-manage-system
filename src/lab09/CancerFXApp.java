@@ -18,6 +18,7 @@ import util.CsvExportUtil;
 
 import java.io.File;
 import java.sql.Date;
+import java.util.ArrayList;
 import java.util.List;
 
 public class CancerFXApp extends Application {
@@ -25,6 +26,11 @@ public class CancerFXApp extends Application {
 	private CancerDao dao = new CancerDao();
 	private TableView<Cancer> tableView = new TableView<>();
 	private ObservableList<Cancer> currentData = FXCollections.observableArrayList();
+	private List<Cancer> originalData = new ArrayList<>(); // 用來保存原始資料
+	
+   
+	
+	
 
 	@Override
 	public void start(Stage primaryStage) {
@@ -95,7 +101,16 @@ public class CancerFXApp extends Application {
 	    });
 
 	    tableView.getColumns().addAll(idCol, stageCol, raceCol, vitalCol, updateCol, daysCol, editCol, deleteCol);
-	    tableView.setItems(currentData);
+	    //tableView.setItems(currentData);
+	    
+	    List<Cancer> loadedData = dao.findAllPatient();
+	    currentData.setAll(loadedData);
+	    originalData = new ArrayList<>(loadedData); // 備份一份原始資料
+	    
+
+
+	    
+
 	    
 //	    refreshTable();
 
@@ -148,12 +163,13 @@ public class CancerFXApp extends Application {
 	    Button addBtn = new Button("新增資料");
 	    Button exportBtn = new Button("匯出資料表");
 	    Button countBtn = new Button("資料筆數");
+	    Button restoreButton = new Button("還原資料");
 	    Button exitBtn = new Button("離開");
 	    
 	    
 	    
 	    HBox queryBox = new HBox(10, queryTypeBox, queryField, doQueryBtn);
-	    HBox buttonBox = new HBox(10, importBtn, addBtn, exportBtn, countBtn, exitBtn);
+	    HBox buttonBox = new HBox(10, importBtn, addBtn, exportBtn, countBtn,restoreButton, exitBtn);
 
 	    HBox queryAndButtonsBox = new HBox(20, queryBox, buttonBox);
 	    queryAndButtonsBox.setPadding(new Insets(10));
@@ -190,8 +206,9 @@ public class CancerFXApp extends Application {
 	            }
 
 	            if (list != null && !list.isEmpty()) {
-	                currentData.setAll(list);
-	                refreshTable();
+	                dao.saveCancer(list);                  // ✅ 寫入資料庫
+	                refreshTable();                        // ✅ 更新畫面
+	                originalData = new ArrayList<>(currentData); // ✅ 更新還原用資料
 	                showInfo("匯入完成，共 " + list.size() + " 筆資料。");
 	            } else {
 	                showError("匯入失敗或檔案內容空白");
@@ -251,7 +268,21 @@ public class CancerFXApp extends Application {
 	        int count = dao.countRemainingRows();
 	        showInfo("資料表中目前筆數：" + count);
 	    });
-
+	    //還原資料
+	    
+	    restoreButton.setOnAction(e -> {
+	        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "確定要還原資料庫與畫面嗎？", ButtonType.YES, ButtonType.NO);
+	        confirm.setTitle("還原確認");
+	        confirm.showAndWait().ifPresent(response -> {
+	            if (response == ButtonType.YES) {
+	                dao.saveCancer(originalData);  // 重寫資料庫
+	                currentData.setAll(originalData);  // 還原畫面
+	                tableView.setItems(currentData);
+	                showInfo("資料已還原");
+	            }
+	        });
+	    });
+	
 	    // 離開
 	    exitBtn.setOnAction(e -> {
 	        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "確定要離開程式嗎？", ButtonType.YES, ButtonType.NO);
